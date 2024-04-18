@@ -171,6 +171,36 @@ export class Flags {
   }
   
   /**
+   * Get the set of the tested flags.
+   * @param {Flags|string} tested 
+   */
+  intersect(tested) {
+    if (tested === this) {
+      return this;
+    } else if (tested) {
+      return new Flags();
+    } else {
+      return new Flags(
+        tested.split(this.delimiter).filter( (flag) => (this.has(flag))).join(this.formatDelimiter));
+    }
+  }
+  
+  /**
+   * Get the flags not given.
+   * @param {Flags|string} flags The flags not included.
+   */
+  difference(flags) {
+    if (!flags) {
+      return this;
+    } else if (this === flags) {
+      return new Flags();
+    } else {
+      const removed = flags.split(this.delimiter);
+      return new Flags(this.getKeys().filter( (flag) => (removed.includes(flag))).join(this.formatDelimiter));
+    }
+  }
+  
+  /**
    * Get the flags.
    *
    * @returns {Array<string>} The iterator of the flags.
@@ -360,6 +390,34 @@ return result;
    */
   get flags() {
     return Flags.setFlag(this.mandatoryFlags.concat(this.#currentFlags), this.getSegmentFlags(this.segments));
+  }
+  
+  addMandatoryFlags(flags) {
+    if (!flags) {
+      return this;
+    }
+    const currentFlags = new Flags(this.#mandatoryFlags);
+    const addedFlags = new Flags(flags);
+    if (currentFlags.includes(addedFlags)) {
+      return this;
+    } else if (addedFlags.includes(this.prohibitedFlags)) {
+      throw new SyntaxError(`Prohibited mandatory flag ${
+        addedFlags.intersect(this.prohibitedFlags)
+      }`);
+    } else {
+      // Testing, if new flags prohibits current flags
+      const newProhibited = new Flags(this.getProhibitedFlags(addedFlags.toString()));
+      if (newProhibited.includes(this.flags)) {
+        throw new SyntaxError(`Mandatory flag would prohibit an existing flags ${
+          newProhibited.intersect(this.flags)
+        }`)
+      }
+      
+      return new RegExpBuilder({
+        ...this,
+        mandatoryFlags: currentFlags.concat(addedFlags).toString()
+      });
+    }
   }
 
   /**
